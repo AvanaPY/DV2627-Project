@@ -13,32 +13,32 @@ class Course:
         self._revision = revision
         self._name = name
     
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Course[Group={self._group}, Code={self._code}, Revision={self._revision}, Name={self._name}]'
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
     
     @property
-    def group(self):
+    def group(self) -> str:
         return self._group
     
     @property
-    def code(self):
+    def code(self) -> str:
         return self._code
     
     @property
-    def revision(self):
+    def revision(self) -> str:
         return self._revision
     
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
     
-    def build_course_id(self):
+    def build_course_id(self) -> str: 
         return f'{self.group}{self.code}'
     
-    def rebuild_path(self):
+    def rebuild_path(self) -> str:
         return f'{self.group}{self.code}_{self.revision}__{self.name}.pdf'
     
 class CourseCollection:
@@ -104,7 +104,7 @@ class CourseCollection:
                 collection[course_id] = [item]
         return collection
     
-    def copy_to_folder(self, old_folder : str, new_folder_path : str):
+    def copy_to_folder(self, old_folder : str, new_folder_path : str) -> None:
         os.makedirs(new_folder_path, exist_ok=True)
         
         print(f'Copying {self.length} files...')
@@ -115,7 +115,7 @@ class CourseCollection:
             new_path = os.path.join(new_folder_path, file_name)
             shutil.copyfile(old_path, new_path)
     
-    def get_course_groups(self):
+    def get_course_groups(self) -> List[str]:
         groups = sorted(list(set([a.group for a in self._collection])))
         return groups
     
