@@ -7,6 +7,9 @@ import re
 import tqdm
 
 class Course:
+    """
+        A Class that represents a course file name in a different format.
+    """
     def __init__(self, group : str, code : str, revision : str, name : str):
         self._group = group
         self._code = code
@@ -36,9 +39,19 @@ class Course:
         return self._name
     
     def build_course_id(self) -> str: 
+        """
+            Builds the course ID
+            
+            @Returns :: str
+        """
         return f'{self.group}{self.code}'
     
     def rebuild_path(self) -> str:
+        """
+            Rebuilds the file name.
+            
+            @Returns :: str
+        """
         return f'{self.group}{self.code}_{self.revision}__{self.name}.pdf'
     
 class CourseCollection:
@@ -62,6 +75,13 @@ class CourseCollection:
         return len(self._collection)
     
     def add_from_path(self, path : str) -> None:
+        """
+            Adds a course from a filepath to the collection.
+            
+            @param :: path : str - The path to the course syllabus file
+
+            @Returns :: None
+        """
         code_rev, name = path.split('__', 1)
         code, revision = code_rev.split('_', 1)
         name, ext = os.path.splitext(name)
@@ -75,11 +95,23 @@ class CourseCollection:
         self._collection.append(Course(code_grp, num, revision, name))
     
     def filter_by_course_group(self, course_group : str) -> CourseCollection:
+        """
+            Creates a new filtered CourseCollection based on a course group given
+            
+            @param :: course_group : str - The course group to filter the collection by
+            
+            @Returns :: CourseCollection
+        """
         collection = filter(lambda x : x.group == course_group, self._collection)
         collection = list(map(lambda x : x.rebuild_path(), collection))
         return CourseCollection.from_list(collection) 
     
     def filter_by_latest_revision(self) -> CourseCollection:
+        """
+            Creates a new filtered CourseCollection by the latest revisions
+            
+            @Returns :: CourseCollection
+        """
         collections = {}
         for item in self._collection:
             course_id = item.build_course_id()
@@ -95,6 +127,11 @@ class CourseCollection:
         return CourseCollection.from_list(collection_list)
         
     def group_by_course_id(self) -> Dict[str, Course]:
+        """
+            Creates a dictionary that maps course ids to a list of courses containing all revisions in the current collection.
+            
+            @Returns :: Dict[str, Course]
+        """
         collection = {}
         for item in self._collection:
             course_id = item.build_course_id()
@@ -105,6 +142,14 @@ class CourseCollection:
         return collection
     
     def copy_to_folder(self, old_folder : str, new_folder_path : str) -> None:
+        """
+            Copies all files contained in the collection.
+            
+            @param :: old_folder : str - The source folder where all files in the collection currently exists.
+            @param :: new_folder : str - The new folder to which to copy all the files contained in the collection to.
+
+            @Returns :: None
+        """
         os.makedirs(new_folder_path, exist_ok=True)
         
         print(f'Copying {self.length} files...')
@@ -116,11 +161,23 @@ class CourseCollection:
             shutil.copyfile(old_path, new_path)
     
     def get_course_groups(self) -> List[str]:
+        """
+            Creates a list of course groups that are contained in the current collection
+            
+            @Returns :: List[str]
+        """
         groups = sorted(list(set([a.group for a in self._collection])))
         return groups
     
     @staticmethod
     def from_list(lst : List[str]) -> CourseCollection:
+        """
+            Creates a CourseCollection instance from a list of paths to course syllabi.
+            
+            @param :: lst : List[str] - A list of string instances where each string represents a path to a course syllabus
+            
+            @Returns :: CourseCollection
+        """
         collection = CourseCollection()
         for item in lst:
             collection.add_from_path(item)
