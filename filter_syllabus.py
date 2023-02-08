@@ -8,8 +8,6 @@ processedCourse = namedtuple('ProcessedCourse', 'course_group course_code revisi
 def process_course_file_name(course : str) -> processedCourse:
     """
         Takes in a file name and processes it. This requires the file name to be of a specific format, namely \"<course code>_<revision_id>-<some number>__<course name>.pdf\"
-        
-    
     """
     code_rev, name = course.split('__', 1)
     code, revision = code_rev.split('_', 1)
@@ -23,7 +21,7 @@ def process_course_file_name(course : str) -> processedCourse:
 
 def filter_by_course_group(course_group : str) -> Callable:
     """
-        Returns a wrapper that returns whether or not an input string starts with a given sequence.
+        Returns a wrapper function that returns True/False on whether or not a ProcessedCourse instance is part of the course group specified.
     """
     def wrapper(x : processedCourse) -> bool:
         return x[0].startswith(course_group)
@@ -66,11 +64,3 @@ def filter_courses_by(courses : List[str], course_group : Optional[str] = None, 
             processed_coures = filter_by_latest_revision(processed_coures)
 
     return processed_coures
-
-courses_path = 'kursinfo-course-plans'
-courses = list(sorted(os.listdir(courses_path)))
-
-grps = filter_courses_by(courses, 'dv', 'latest')
-print(f'Number of filtered courses: {len(grps)}')
-for processed_course in grps[:20]:
-    print(f'\t{processed_course}')
