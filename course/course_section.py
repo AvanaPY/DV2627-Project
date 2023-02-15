@@ -25,6 +25,12 @@ class CourseData:
             return section[0]
         return None
     
+    def get_printable_sections(self) -> str:
+        s = []
+        for section in self.sections:
+            s.append(f'{section.identifier.rjust(5, " ")} : {section.title.ljust(50, ".")} {section.content[:50]}...')
+        return '\n'.join(s)
+    
     @staticmethod
     def split_at_section_one(texts : List[str]) -> Tuple[List[str], List[str]]:
         before : List[str] = []
@@ -56,17 +62,21 @@ class CourseData:
             while i < len(after):
                 line = after[i]
                 matches = regexp.match(line)
-                if matches:
-                    identifier = matches.groups()[0]
-                else:
+                if not matches:
                     print(line)
                     print(f'ERROR {i}')
                     exit(0)
-                title = after[i + 1]
+                    
+                identifier = matches.groups()[0]
+                if len(line) > len(matches.groups()[0]):
+                    title = line[len(matches.groups()[0])+1:]
+                else:
+                    i += 1
+                    title = after[i]
                 content = []
                 
                 # This builds the content of the section
-                i = i + 2
+                i += 1
                 matches = None
                 while not matches and i < len(after):
                     line = after[i]
@@ -76,7 +86,7 @@ class CourseData:
                     
                     content.append(line)
                     i += 1
-                content = '\n'.join(content)
+                content = ' '.join(content)
                 sections.append(CourseSection(
                     identifier=identifier,
                     title=title,

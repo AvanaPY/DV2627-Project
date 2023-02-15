@@ -187,7 +187,6 @@ class CourseCollection:
             with open(new_path, 'w+') as f:
                 f.write(data)
 
-    
     @staticmethod
     def from_list(lst : List[str]) -> CourseCollection:
         """
@@ -202,12 +201,3 @@ class CourseCollection:
             collection.add_from_path(item)
             
         return collection
-    
-    
-class CourseSection:
-    def __init__(self, number : str, title : str, content : str):
-        pass
-    
-class CourseData:
-    def __init__(self):
-        self._sections : List[CourseSection] = [] 
