@@ -49,7 +49,43 @@ class CourseData:
             s.append(f'{section.identifier.ljust(5, " ")} : {section.title.ljust(50, ".")} {section.content[:50]}...')
         return '\n'.join(s)
     
-    def redesign_filen_för_fan(self, new_file_path : str) -> None:
+    def add_tokens(self) -> None:
+        
+        tokens = {
+            'swe_title' : '<SWE_TITLE>',
+            'swe_title_end' : '</SWE_TITLE>',
+            'eng_title' : '<ENG_TITLE>',
+            'eng_title_end' : '</ENG_TITLE>',
+            'ects' : '<ECTS>',
+            'ects_end' : '</ECTS>',
+            'section_title' : '<SECTION_TITLE>',
+            'section_title_end' : '</SECTION_TITLE>',
+            'section_content' : '<SECTION_CONTENT>',
+            'section_content_end' : '</SECTION_CONTENT>'
+        }
+        
+        file_content : List[str] = []
+        file_content.append('KURSPLAN')
+        file_content.append(tokens['swe_title'] + self.swe_course_name + tokens['swe_title_end'])
+        file_content.append(tokens['eng_title'] + self.eng_course_name + tokens['eng_title_end'])
+        
+        file_content.append(f'Högskolepoäng: {self.ects}')
+        
+        for section in self.sections:
+            file_content.append(tokens['section_title'] + f'{section.identifier} {section.title}' + tokens['section_title_end'])
+            file_content.append(tokens['section_content'])
+            file_content.append(section.content)
+            file_content.append(tokens['section_content_end'])
+            
+        file_content = '\n'.join(file_content)
+        file_content = re.sub(' ([:.,])', r'\1', file_content)
+        file_content = re.sub(' +', ' ', file_content)
+    
+        print(file_content)
+        # with open(new_file_path, 'w+') as f:
+        #     f.write(file_content)
+    
+    def redesign_filen_för_fan(self) -> str:
         
         file_content : List[str] = []
         file_content.append('KURSPLAN')
@@ -62,11 +98,11 @@ class CourseData:
             file_content.append(f'{section.identifier} {section.title}')
             file_content.append(section.content)
     
-        with open(new_file_path, 'w+') as f:
-            file_content = '\n'.join(file_content)
-            file_content = re.sub(' ([:.,])', r'\1', file_content)
-            file_content = re.sub(' +', ' ', file_content)
-            f.write(file_content)
+        file_content = '\n'.join(file_content)
+        file_content = re.sub(' ([:.,])', r'\1', file_content)
+        file_content = re.sub(' +', ' ', file_content)
+       
+        return file_content
         
     @staticmethod
     def split_at_section_one(texts : List[str]) -> Tuple[List[str], List[str]]:
@@ -97,8 +133,8 @@ class CourseData:
             # Find course name and title
             for i, line in enumerate(before):
                 if line.startswith('KURSPLAN'):
-                    swe_course_name = before[i + 1]
-                    eng_course_name = before[i + 2] 
+                    swe_course_name = before[i + 1].strip()
+                    eng_course_name = before[i + 2].strip()
                     break
                 
             full_before = ''.join(before).replace('\n', '').replace(' ', '')

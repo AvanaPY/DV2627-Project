@@ -7,7 +7,7 @@ import re
 import tqdm
 from PyPDF2 import PdfReader
 
-class Course:
+class CoursePDFInfo:
     """
         A Class that represents a course file name in a different format.
     """
@@ -55,20 +55,20 @@ class Course:
         """
         return f'{self.group}{self.code}_{self.revision}__{self.name}.pdf'
     
-class CourseCollection:
+class CoursePDFCollection:
     MAX_PRINT_SIZE = 50
     def __init__(self):
-        self._collection : List[Course] = []
+        self._collection : List[CoursePDFInfo] = []
     
     def __str__(self) -> str:
         s = f'CourseCollection of {self.length} courses:\n'
-        for i, item in zip(range(CourseCollection.MAX_PRINT_SIZE), self._collection):
+        for i, item in zip(range(CoursePDFCollection.MAX_PRINT_SIZE), self._collection):
             s += f'\t{i:5d}: {item}\n'
-        if self.length > CourseCollection.MAX_PRINT_SIZE:
+        if self.length > CoursePDFCollection.MAX_PRINT_SIZE:
             s += f'\t...'
         return s
     
-    def __getitem__(self, x : int) -> Course:
+    def __getitem__(self, x : int) -> CoursePDFInfo:
         return self._collection[x]
     
     @property
@@ -93,9 +93,9 @@ class CourseCollection:
         except AttributeError:
             print(f'Cannot match \"{code}\"')
             
-        self._collection.append(Course(code_grp, num, revision, name))
+        self._collection.append(CoursePDFInfo(code_grp, num, revision, name))
     
-    def filter_by_course_group(self, course_group : str) -> CourseCollection:
+    def filter_by_course_group(self, course_group : str) -> CoursePDFCollection:
         """
             Creates a new filtered CourseCollection based on a course group given
             
@@ -105,9 +105,9 @@ class CourseCollection:
         """
         collection = filter(lambda x : x.group == course_group, self._collection)
         collection = list(map(lambda x : x.rebuild_path(), collection))
-        return CourseCollection.from_list(collection) 
+        return CoursePDFCollection.from_list(collection) 
     
-    def filter_by_latest_revision(self) -> CourseCollection:
+    def filter_by_latest_revision(self) -> CoursePDFCollection:
         """
             Creates a new filtered CourseCollection by the latest revisions
             
@@ -125,9 +125,9 @@ class CourseCollection:
             collections[key][-1] for key in collections.keys()
         ]
         collection_list = list(map(lambda x : x.rebuild_path(), collection_list))
-        return CourseCollection.from_list(collection_list)
+        return CoursePDFCollection.from_list(collection_list)
         
-    def group_by_course_id(self) -> Dict[str, Course]:
+    def group_by_course_id(self) -> Dict[str, CoursePDFInfo]:
         """
             Creates a dictionary that maps course ids to a list of courses containing all revisions in the current collection.
             
@@ -185,7 +185,7 @@ class CourseCollection:
                 f.write(data)
 
     @staticmethod
-    def from_list(lst : List[str]) -> CourseCollection:
+    def from_list(lst : List[str]) -> CoursePDFCollection:
         """
             Creates a CourseCollection instance from a list of paths to course syllabi.
             
@@ -193,7 +193,7 @@ class CourseCollection:
             
             @Returns :: CourseCollection
         """
-        collection = CourseCollection()
+        collection = CoursePDFCollection()
         for item in lst:
             collection.add_from_path(item)
             
