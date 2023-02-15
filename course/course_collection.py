@@ -5,6 +5,7 @@ import os
 import shutil
 import re
 import tqdm
+from PyPDF2 import PdfReader
 
 class Course:
     """
@@ -57,7 +58,7 @@ class Course:
 class CourseCollection:
     MAX_PRINT_SIZE = 50
     def __init__(self):
-        self._collection = []
+        self._collection : List[Course] = []
     
     def __str__(self) -> str:
         s = f'CourseCollection of {self.length} courses:\n'
@@ -141,7 +142,7 @@ class CourseCollection:
                 collection[course_id] = [item]
         return collection
     
-    def copy_to_folder(self, old_folder : str, new_folder_path : str) -> None:
+    def copy_to_folder(self, old_folder_path : str, new_folder_path : str) -> None:
         """
             Copies all files contained in the collection.
             
@@ -152,11 +153,11 @@ class CourseCollection:
         """
         os.makedirs(new_folder_path, exist_ok=True)
         
-        print(f'Copying {self.length} files...')
+        print(f'Copying {self.length} files from {old_folder_path} to {new_folder_path}')
         for item in tqdm.tqdm(self._collection):
             file_name = item.rebuild_path()
             
-            old_path = os.path.join(old_folder, file_name)
+            old_path = os.path.join(old_folder_path, file_name)
             new_path = os.path.join(new_folder_path, file_name)
             shutil.copyfile(old_path, new_path)
     
@@ -168,6 +169,24 @@ class CourseCollection:
         """
         groups = sorted(list(set([a.group for a in self._collection])))
         return groups
+    
+    def convert_from_pdf_to_text(self, original_folder : str, new_folder : str) -> None:
+        if not os.path.exists(new_folder):
+            os.makedirs(new_folder, exist_ok=True)
+            
+        print(f'Converting {self.length} files to text format...')
+        for course in tqdm.tqdm(self._collection):
+            path = os.path.join(original_folder, course.rebuild_path())
+            new_path = os.path.join(new_folder, course.rebuild_path().replace('pdf', 'txt'))
+            
+            reader = PdfReader(path)
+            data = '\n'.join([page.extract_text(0) for page in reader.pages])
+            data = data.split('\n')
+            data = list(filter(lambda x : len(x) > 1, data))
+            data = '\n'.join(data)
+            with open(new_path, 'w+') as f:
+                f.write(data)
+
     
     @staticmethod
     def from_list(lst : List[str]) -> CourseCollection:
@@ -183,3 +202,12 @@ class CourseCollection:
             collection.add_from_path(item)
             
         return collection
+    
+    
+class CourseSection:
+    def __init__(self, number : str, title : str, content : str):
+        pass
+    
+class CourseData:
+    def __init__(self):
+        self._sections : List[CourseSection] = [] 

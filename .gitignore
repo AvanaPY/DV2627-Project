@@ -1,3 +1,5 @@
 kursinfo-course-plans
 course_plans
+text_courses
 *.pyc
+*.txt
