@@ -181,9 +181,6 @@ class CourseCollection:
             
             reader = PdfReader(path)
             data = '\n'.join([page.extract_text(0) for page in reader.pages])
-            data = data.split('\n')
-            data = list(filter(lambda x : len(x) > 1, data))
-            data = '\n'.join(data)
             with open(new_path, 'w+') as f:
                 f.write(data)
 

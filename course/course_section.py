@@ -10,8 +10,26 @@ class CourseSection:
     content : str
 
 class CourseData:
-    def __init__(self, sections : List[CourseSection]):
+    def __init__(self, 
+                 swe_course_name : str,
+                 eng_course_name : str,
+                 ects : str,
+                 sections : List[CourseSection], 
+                 filename : Optional[str] = None):
+        self.swe_course_name = swe_course_name
+        self.eng_course_name = eng_course_name
+        self.ects = ects
         self.sections : List[CourseSection] = sections
+        self.filename = filename
+
+    def __str__(self) -> str:
+        return '\n'.join([
+            f'CourseData for {self.swe_course_name} ({self.eng_course_name})',
+            f'  ECTS: {self.ects}',
+            f'  Sections:',
+            self.get_printable_sections(),
+            f'  Filename: {self.filename}'
+        ])
 
     def get_section_by_identifier(self, identifier : str) -> CourseSection:
         section = list(filter(lambda x : x.identifier == identifier, self.sections))
@@ -28,9 +46,28 @@ class CourseData:
     def get_printable_sections(self) -> str:
         s = []
         for section in self.sections:
-            s.append(f'{section.identifier.rjust(5, " ")} : {section.title.ljust(50, ".")} {section.content[:50]}...')
+            s.append(f'{section.identifier.ljust(5, " ")} : {section.title.ljust(50, ".")} {section.content[:50]}...')
         return '\n'.join(s)
     
+    def redesign_filen_för_fan(self, new_file_path : str) -> None:
+        
+        file_content : List[str] = []
+        file_content.append('KURSPLAN')
+        file_content.append(self.swe_course_name)
+        file_content.append(self.eng_course_name)
+        
+        file_content.append(f'Högskolepoäng: {self.ects}')
+        
+        for section in self.sections:
+            file_content.append(f'{section.identifier} {section.title}')
+            file_content.append(section.content)
+    
+        with open(new_file_path, 'w+') as f:
+            file_content = '\n'.join(file_content)
+            file_content = re.sub(' ([:.,])', r'\1', file_content)
+            file_content = re.sub(' +', ' ', file_content)
+            f.write(file_content)
+        
     @staticmethod
     def split_at_section_one(texts : List[str]) -> Tuple[List[str], List[str]]:
         before : List[str] = []
@@ -47,7 +84,6 @@ class CourseData:
                 
         return (before, after)
             
-
     @staticmethod
     def from_txt_file_path(file_path : str) -> CourseData:
         sections : List[CourseSection] = []
@@ -56,8 +92,21 @@ class CourseData:
             data = f.read()
             data = data.split('\n')
             
-            # Build sections
             before, after = CourseData.split_at_section_one(data)
+            
+            # Find course name and title
+            for i, line in enumerate(before):
+                if line.startswith('KURSPLAN'):
+                    swe_course_name = before[i + 1]
+                    eng_course_name = before[i + 2] 
+                    break
+                
+            full_before = ''.join(before).replace('\n', '').replace(' ', '')
+            expr = re.compile('(\d+,*\d*)högskolepoäng')
+            matches = expr.findall(full_before)
+            ects = matches[0]
+                
+            # Build sections
             i : int = 0
             while i < len(after):
                 line = after[i]
@@ -92,6 +141,10 @@ class CourseData:
                     title=title,
                     content=content
                 ))
-                
             
-        return CourseData(sections)
+        return CourseData(
+            swe_course_name=swe_course_name,
+            eng_course_name=eng_course_name,
+            ects=ects,
+            sections=sections, 
+            filename=file_path)
