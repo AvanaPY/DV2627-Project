@@ -56,6 +56,9 @@ class CoursePDFInfo:
         return f'{self.group}{self.code}_{self.revision}__{self.name}.pdf'
     
 class CoursePDFCollection:
+    """
+        A collection of PDF course syllabus files for the purpose of filtering and grouping courses, as well as converting them to .txt files.
+    """
     MAX_PRINT_SIZE = 50
     def __init__(self):
         self._collection : List[CoursePDFInfo] = []
@@ -154,7 +157,7 @@ class CoursePDFCollection:
         os.makedirs(new_folder_path, exist_ok=True)
         
         print(f'Copying {self.length} files from {old_folder_path} to {new_folder_path}')
-        for item in tqdm.tqdm(self._collection):
+        for item in tqdm.tqdm(self._collection, ncols=100):
             file_name = item.rebuild_path()
             
             old_path = os.path.join(old_folder_path, file_name)
@@ -174,8 +177,8 @@ class CoursePDFCollection:
         if not os.path.exists(new_folder):
             os.makedirs(new_folder, exist_ok=True)
             
-        print(f'Converting {self.length} files to text format...')
-        for course in tqdm.tqdm(self._collection):
+        print(f'Converting {self.length} PDF files to TXT...')
+        for course in tqdm.tqdm(self._collection, ncols=100):
             path = os.path.join(original_folder, course.rebuild_path())
             new_path = os.path.join(new_folder, course.rebuild_path().replace('pdf', 'txt'))
             
@@ -184,6 +187,11 @@ class CoursePDFCollection:
             data = '\n'.join(page_data)
             with open(new_path, 'w+') as f:
                 f.write(data)
+
+    @staticmethod
+    def from_folder(folder_path : str) -> CoursePDFCollection:
+        courses = list(sorted(os.listdir(folder_path)))
+        return CoursePDFCollection.from_list(courses)
 
     @staticmethod
     def from_list(lst : List[str]) -> CoursePDFCollection:

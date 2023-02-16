@@ -1,5 +1,7 @@
-kursinfo-course-plans
-course_plans
-text_courses
 *.pyc
 *.txt
+
+# All our folders
+kursinfo-course-plans
+converted-course-plans
+rebuilt-course-plans

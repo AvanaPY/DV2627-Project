@@ -3,6 +3,9 @@ from typing import *
 from dataclasses import dataclass
 import re
 import os
+from tqdm import tqdm
+
+from course.utils import extract_data_from_file_name
 
 @dataclass(frozen=True)
 class CourseSection:
@@ -22,6 +25,11 @@ class CourseData:
         self.ects = ects
         self.sections : List[CourseSection] = sections
         self.filename = filename
+        course_id, revision, course_name, file_type = extract_data_from_file_name(filename)
+        self.course_id = course_id
+        self.revision = revision
+        self.course_name = course_name
+        self.file_type = file_type
 
     def __str__(self) -> str:
         return '\n'.join([
@@ -88,6 +96,7 @@ class CourseData:
         
         file_content : List[str] = []
         file_content.append('KURSPLAN')
+        file_content.append(self.course_id)
         file_content.append(self.swe_course_name)
         file_content.append(self.eng_course_name)
         
@@ -219,8 +228,9 @@ class CourseDataCollection:
     def build_txt_library(self, new_folder : str) -> None:
         if not os.path.exists(new_folder):
             os.makedirs(new_folder, exist_ok=True)
-            
-        for course in self.collection:
+        
+        print(f'Building text library...')
+        for course in tqdm(self.collection, ncols=100):
             data = course.redesign_filen_för_fan()
             filename, ext = os.path.splitext(course.filename)
             with open(os.path.join(new_folder, filename + '.txt'), 'w+') as f:
@@ -232,8 +242,9 @@ class CourseDataCollection:
         collection : List[CourseData] = []
         for course in courses:
             name, ext = os.path.splitext(course)
-            if ext == '.txt':
+            if ext.lower() == '.txt':
+                # If it's a txt file, just append it as a txt file
                 collection.append(CourseData.from_txt_file_path(os.path.join(folder_path, course)))
             else:
-                raise ValueError(f'File \"{course}\" is not a .txt file.')
+                print(f'Non-supported file format found on {course=}')
         return CourseDataCollection(collection=collection)
