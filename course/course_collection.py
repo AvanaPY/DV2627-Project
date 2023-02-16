@@ -180,7 +180,8 @@ class CoursePDFCollection:
             new_path = os.path.join(new_folder, course.rebuild_path().replace('pdf', 'txt'))
             
             reader = PdfReader(path)
-            data = '\n'.join([page.extract_text(0) for page in reader.pages])
+            page_data = [page.extract_text(0) for page in reader.pages]
+            data = '\n'.join(page_data)
             with open(new_path, 'w+') as f:
                 f.write(data)
 

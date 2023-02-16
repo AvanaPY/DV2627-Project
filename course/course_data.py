@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import *
 from dataclasses import dataclass
 import re
+import os
 
 @dataclass(frozen=True)
 class CourseSection:
@@ -82,8 +83,6 @@ class CourseData:
         file_content = re.sub(' +', ' ', file_content)
     
         print(file_content)
-        # with open(new_file_path, 'w+') as f:
-        #     f.write(file_content)
     
     def redesign_filen_för_fan(self) -> str:
         
@@ -123,9 +122,11 @@ class CourseData:
     @staticmethod
     def from_txt_file_path(file_path : str) -> CourseData:
         sections : List[CourseSection] = []
-        regexp = re.compile('^(\d+\.\d*)')
+        regexp = re.compile('^(\d{1,2}\.\d{0,2})')
+        
         with open(file_path, 'r') as f:
             data = f.read()
+            data = data.replace('\xa0', '')   # Filter out unwanted characters, apparently \xa0 appears a lot
             data = data.split('\n')
             
             before, after = CourseData.split_at_section_one(data)
@@ -137,10 +138,18 @@ class CourseData:
                     eng_course_name = before[i + 2].strip()
                     break
                 
-            full_before = ''.join(before).replace('\n', '').replace(' ', '')
-            expr = re.compile('(\d+,*\d*)högskolepoäng')
+            full_before = ''.join(before).replace(' ', '')
+            expr = re.compile('(\d+,*\d*) *[poäng|högskolepoäng]')
             matches = expr.findall(full_before)
-            ects = matches[0]
+            try:
+                ects = matches[0]
+            except Exception as e:
+                print(f'Error: {e} on file \"{file_path}\". Could not find ECTS.')
+                print(f'Full section:')
+                print(before)
+                print(full_before)
+                print(f'Matches for expr {expr}: {matches}')
+                exit(0)
                 
             # Build sections
             i : int = 0
@@ -149,15 +158,20 @@ class CourseData:
                 matches = regexp.match(line)
                 if not matches:
                     print(line)
-                    print(f'ERROR {i}')
+                    print(f'ERROR: No matches for {regexp=} found with {i=} on {file_path=}')
                     exit(0)
                     
                 identifier = matches.groups()[0]
                 if len(line) > len(matches.groups()[0]):
                     title = line[len(matches.groups()[0])+1:]
                 else:
-                    i += 1
-                    title = after[i]
+                    try:
+                        i += 1
+                        title = after[i]
+                    except Exception as e:
+                        print(f'Error when building title:', len(after), identifier, i, after)
+                        exit(0)
+                        
                 content = []
                 
                 # This builds the content of the section
@@ -171,6 +185,7 @@ class CourseData:
                     
                     content.append(line)
                     i += 1
+                    
                 content = ' '.join(content)
                 sections.append(CourseSection(
                     identifier=identifier,
@@ -178,9 +193,47 @@ class CourseData:
                     content=content
                 ))
             
+        directory, filename = os.path.split(file_path)
         return CourseData(
             swe_course_name=swe_course_name,
             eng_course_name=eng_course_name,
             ects=ects,
             sections=sections, 
-            filename=file_path)
+            filename=filename)
+        
+class CourseDataCollection:
+    def __init__(self, collection : List[CourseData]):
+        self.collection = collection
+    
+    def __str__(self) -> str:
+        items = self.items
+        return f'CourseDataCollection[{items=}]'
+    
+    def __getitem__(self, x : Any) -> CourseData:
+        return self.collection[x]
+    
+    @property
+    def items(self) -> int:
+        return len(self.collection)
+    
+    def build_txt_library(self, new_folder : str) -> None:
+        if not os.path.exists(new_folder):
+            os.makedirs(new_folder, exist_ok=True)
+            
+        for course in self.collection:
+            data = course.redesign_filen_för_fan()
+            filename, ext = os.path.splitext(course.filename)
+            with open(os.path.join(new_folder, filename + '.txt'), 'w+') as f:
+                f.write(data)
+    
+    @staticmethod
+    def from_folder(folder_path : str) -> CourseDataCollection:
+        courses = os.listdir(folder_path)
+        collection : List[CourseData] = []
+        for course in courses:
+            name, ext = os.path.splitext(course)
+            if ext == '.txt':
+                collection.append(CourseData.from_txt_file_path(os.path.join(folder_path, course)))
+            else:
+                raise ValueError(f'File \"{course}\" is not a .txt file.')
+        return CourseDataCollection(collection=collection)
