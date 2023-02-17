@@ -8,7 +8,7 @@ courses_folder   = 'kursinfo-course-plans'
 converted_folder = 'converted-course-plans'
 rebuilt_folder   = 'rebuilt-course-plans'
 
-if not os.path.exists(converted_folder) or True:
+if not os.path.exists(converted_folder):
     collection = CoursePDFCollection.from_folder(courses_folder)
     collection = collection.filter_by_latest_revision()
     collection = collection.filter_by_course_group('dv')

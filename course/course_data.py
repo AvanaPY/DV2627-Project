@@ -97,6 +97,7 @@ class CourseData:
         file_content : List[str] = []
         file_content.append('KURSPLAN')
         file_content.append(self.course_id)
+        file_content.append(f'Revision {self.revision}')
         file_content.append(self.swe_course_name)
         file_content.append(self.eng_course_name)
         
@@ -235,6 +236,9 @@ class CourseDataCollection:
             filename, ext = os.path.splitext(course.filename)
             with open(os.path.join(new_folder, filename + '.txt'), 'w+') as f:
                 f.write(data)
+                
+    def build_tensorflow_dataset(self) -> None:
+        pass
     
     @staticmethod
     def from_folder(folder_path : str) -> CourseDataCollection:
@@ -246,5 +250,5 @@ class CourseDataCollection:
                 # If it's a txt file, just append it as a txt file
                 collection.append(CourseData.from_txt_file_path(os.path.join(folder_path, course)))
             else:
-                print(f'Non-supported file format found on {course=}')
+                raise ValueError(f'Non-supported file format found on {course=}')
         return CourseDataCollection(collection=collection)
