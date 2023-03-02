@@ -5,6 +5,11 @@ import re
 import os
 from tqdm import tqdm
 
+import tensorflow as tf
+import tensorflow_text as tf_text
+from tensorflow_text.tools.wordpiece_vocab import bert_vocab_from_dataset
+
+from tokenizer.tokenizer import Tokenizer, tokenizer_from_tf_dataset
 from course.utils import extract_data_from_file_name
 
 @dataclass(frozen=True)
@@ -58,40 +63,6 @@ class CourseData:
             s.append(f'{section.identifier.ljust(5, " ")} : {section.title.ljust(50, ".")} {section.content[:50]}...')
         return '\n'.join(s)
     
-    def add_tokens(self) -> None:
-        
-        tokens = {
-            'swe_title' : '<SWE_TITLE>',
-            'swe_title_end' : '</SWE_TITLE>',
-            'eng_title' : '<ENG_TITLE>',
-            'eng_title_end' : '</ENG_TITLE>',
-            'ects' : '<ECTS>',
-            'ects_end' : '</ECTS>',
-            'section_title' : '<SECTION_TITLE>',
-            'section_title_end' : '</SECTION_TITLE>',
-            'section_content' : '<SECTION_CONTENT>',
-            'section_content_end' : '</SECTION_CONTENT>'
-        }
-        
-        file_content : List[str] = []
-        file_content.append('KURSPLAN')
-        file_content.append(tokens['swe_title'] + self.swe_course_name + tokens['swe_title_end'])
-        file_content.append(tokens['eng_title'] + self.eng_course_name + tokens['eng_title_end'])
-        
-        file_content.append(f'Högskolepoäng: {self.ects}')
-        
-        for section in self.sections:
-            file_content.append(tokens['section_title'] + f'{section.identifier} {section.title}' + tokens['section_title_end'])
-            file_content.append(tokens['section_content'])
-            file_content.append(section.content)
-            file_content.append(tokens['section_content_end'])
-            
-        file_content = '\n'.join(file_content)
-        file_content = re.sub(' ([:.,])', r'\1', file_content)
-        file_content = re.sub(' +', ' ', file_content)
-    
-        print(file_content)
-    
     def redesign_filen_för_fan(self) -> str:
         
         file_content : List[str] = []
@@ -113,6 +84,32 @@ class CourseData:
        
         return file_content
         
+    def get_as_datapoint(self):
+        
+        context : List[str] = []
+        
+        context.append('KURSPLAN')
+        context.append(self.course_id)
+        context.append(f'Revision {self.revision}')
+        context.append(self.swe_course_name)
+        context.append(self.eng_course_name)
+        context.append(f'Högskolepoäng: {self.ects}')
+        
+        context = '\n'.join(context)
+        context = re.sub(' ([:.,])', r'\1', context)
+        context = re.sub(' +', ' ', context)
+        
+        file_content : List[str] = []
+        for section in self.sections:
+            file_content.append(f'{section.identifier} {section.title}')
+            file_content.append(section.content)
+    
+        file_content = '\n'.join(file_content)
+        file_content = re.sub(' ([:.,])', r'\1', file_content)
+        file_content = re.sub(' +', ' ', file_content)
+        
+        return context, file_content
+    
     @staticmethod
     def split_at_section_one(texts : List[str]) -> Tuple[List[str], List[str]]:
         before : List[str] = []
@@ -196,13 +193,13 @@ class CourseData:
                     content.append(line)
                     i += 1
                     
-                content = ' '.join(content)
+                content = '\n'.join(content)
                 sections.append(CourseSection(
                     identifier=identifier,
                     title=title,
                     content=content
                 ))
-            
+                
         directory, filename = os.path.split(file_path)
         return CourseData(
             swe_course_name=swe_course_name,
@@ -214,6 +211,14 @@ class CourseData:
 class CourseDataCollection:
     def __init__(self, collection : List[CourseData]):
         self.collection = collection
+        self.vocab_size = 4000
+        self.reserved_tokens = [
+            '[START]', 
+            '[END]', 
+            '[UNK]', 
+            '[PAD]',
+            '[NL]'
+        ]
     
     def __str__(self) -> str:
         items = self.items
@@ -236,10 +241,74 @@ class CourseDataCollection:
             filename, ext = os.path.splitext(course.filename)
             with open(os.path.join(new_folder, filename + '.txt'), 'w+') as f:
                 f.write(data)
-                
-    def build_tensorflow_dataset(self) -> None:
-        pass
     
+    def __get_tokenizer_from_dataset(self, ds : tf.data.Dataset, verbose:bool=False) -> Any:
+        
+        vocab_path = 'tmp/vocab.txt'
+        bert_tokenizer_params = dict(
+            keep_whitespace=True)
+        if not os.path.exists(vocab_path):
+            if verbose:
+                print(f'Building vocabulary. This may take a few minutes.')
+            os.makedirs(os.path.split(vocab_path)[0], exist_ok=True)
+            vocab_args = dict(    
+                vocab_size=self.vocab_size,
+                reserved_tokens=self.reserved_tokens,
+                bert_tokenizer_params=bert_tokenizer_params,
+                learn_params={}
+            )
+            vocab = bert_vocab_from_dataset.bert_vocab_from_dataset(
+                ds.batch(100).prefetch(2),
+                **vocab_args
+            )
+            with open(vocab_path, 'w+') as f:
+                for token in vocab:
+                    print(token, file=f)
+            
+            if verbose:
+                print(f'Vocabulary built: \"{vocab_path}\"')
+        
+        tokenizer = tf_text.BertTokenizer(vocab_path, **bert_tokenizer_params)
+        return tokenizer
+    
+    def build_tensorflow_dataset(self, verbose:bool=False) -> Tuple[tf.data.Dataset, Tokenizer]:
+        dataset_path = 'tmp/dataset.tfds'
+        
+        # First build a basic dataset and make a tokenizer using tensorflow text
+        data = [[item.get_as_datapoint()] for item in self.collection]
+        ds = tf.data.Dataset.from_tensor_slices(data)
+        
+        
+        # Build or load the tokenizer
+        tokenizer = self.__get_tokenizer_from_dataset(ds, verbose=verbose)
+        
+        SEQUENCE_LENGTH = 128
+        BATCH_SIZE = 1
+        BUFFER_SIZE = 1_000
+        
+        def prepare_batch(data):
+            ctx = data[:,:,0]
+            # ctx = tokenizer.tokenize(ctx)
+            # ctx = ctx.merge_dims(-3, -1)
+            # ctx = ctx.to_tensor()
+            
+            x = data[:,:,1]
+            # x = tokenizer.tokenize(x)
+            # x = x.merge_dims(-3, -1)
+            # x = x.to_tensor()
+            return ctx, x
+        
+        def batch(ds):
+            return (
+                ds
+                # .shuffle(BUFFER_SIZE)
+                .batch(BATCH_SIZE)
+                .map(prepare_batch, tf.data.AUTOTUNE)
+                .prefetch(tf.data.AUTOTUNE)
+                )
+        ds = batch(ds)
+        return ds, tokenizer
+        
     @staticmethod
     def from_folder(folder_path : str) -> CourseDataCollection:
         courses = os.listdir(folder_path)
