@@ -240,7 +240,7 @@ class Decoder(Layer):
         x = self.ff(x)
         return x
 
-class Transformer(Model):
+class StureGPT(Model):
     def __init__(self,
                  num_layers : int,
                  model_dims : int,
@@ -280,20 +280,3 @@ class Transformer(Model):
         except AttributeError:
             pass
         return logits
-        
-        
-ctx = tf.constant([[1, 2, 3, 4, 5, 6, 7, 8, 9],
-                   [73, 22, 1, 45, 2, 7, 0, 0, 0]])
-s = tf.constant([[11, 73, 87, 5, 5, 7, 0, 0, 0],
-                 [7, 8, 2, 22, 0, 0, 0, 0, 0]])
-
-StureGPT = Transformer(num_layers=4,
-                       model_dims=128,
-                       num_heads=8,
-                       ff_dims=512,
-                       vocab_size=3000,
-                       dropout=0.2)
-
-out = StureGPT((ctx, s))
-print(out)
-StureGPT.summary()
