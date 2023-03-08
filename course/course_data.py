@@ -6,11 +6,9 @@ import os
 from tqdm import tqdm
 
 import tensorflow as tf
-import tensorflow_text as tf_text
-from tensorflow_text.tools.wordpiece_vocab import bert_vocab_from_dataset
-
-from tokenizer.tokenizer import Tokenizer, tokenizer_from_tf_dataset
 from course.utils import extract_data_from_file_name
+from course.utils import cut, pad
+from transformers import BertTokenizerFast, TFBertTokenizer
 
 @dataclass(frozen=True)
 class CourseSection:
@@ -107,6 +105,7 @@ class CourseData:
         file_content = '\n'.join(file_content)
         file_content = re.sub(' ([:.,])', r'\1', file_content)
         file_content = re.sub(' +', ' ', file_content)
+        file_content = re.sub('\n', '[NL]', file_content)
         
         return context, file_content
     
@@ -217,7 +216,6 @@ class CourseDataCollection:
             '[END]', 
             '[UNK]', 
             '[PAD]',
-            '[NL]'
         ]
     
     def __str__(self) -> str:
@@ -242,68 +240,79 @@ class CourseDataCollection:
             with open(os.path.join(new_folder, filename + '.txt'), 'w+') as f:
                 f.write(data)
     
-    def __get_tokenizer_from_dataset(self, ds : tf.data.Dataset, verbose:bool=False) -> Any:
-        
-        vocab_path = 'tmp/vocab.txt'
-        bert_tokenizer_params = dict(
-            keep_whitespace=True)
-        if not os.path.exists(vocab_path):
-            if verbose:
-                print(f'Building vocabulary. This may take a few minutes.')
-            os.makedirs(os.path.split(vocab_path)[0], exist_ok=True)
-            vocab_args = dict(    
-                vocab_size=self.vocab_size,
-                reserved_tokens=self.reserved_tokens,
-                bert_tokenizer_params=bert_tokenizer_params,
-                learn_params={}
-            )
-            vocab = bert_vocab_from_dataset.bert_vocab_from_dataset(
-                ds.batch(100).prefetch(2),
-                **vocab_args
-            )
-            with open(vocab_path, 'w+') as f:
-                for token in vocab:
-                    print(token, file=f)
-            
-            if verbose:
-                print(f'Vocabulary built: \"{vocab_path}\"')
-        
-        tokenizer = tf_text.BertTokenizer(vocab_path, **bert_tokenizer_params)
+    def __get_tokenizer(self, verbose:bool=False) -> BertTokenizerFast:
+        tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased')
+        tokenizer.add_tokens(["[NL]"], special_tokens=True)
         return tokenizer
     
-    def build_tensorflow_dataset(self, verbose:bool=False) -> Tuple[tf.data.Dataset, Tokenizer]:
-        dataset_path = 'tmp/dataset.tfds'
-        
-        # First build a basic dataset and make a tokenizer using tensorflow text
-        data = [[item.get_as_datapoint()] for item in self.collection]
-        ds = tf.data.Dataset.from_tensor_slices(data)
-        
-        
-        # Build or load the tokenizer
-        tokenizer = self.__get_tokenizer_from_dataset(ds, verbose=verbose)
-        
-        SEQUENCE_LENGTH = 128
-        BATCH_SIZE = 1
-        BUFFER_SIZE = 1_000
-        
-        def prepare_batch(data):
-            ctx = data[:,:,0]
-            # ctx = tokenizer.tokenize(ctx)
-            # ctx = ctx.merge_dims(-3, -1)
-            # ctx = ctx.to_tensor()
+    def get_tf_tokenizer(self) -> TFBertTokenizer:
+        tokenizer = TFBertTokenizer.from_tokenizer(self.__get_tokenizer(False))
+        return tokenizer
+    
+    def build_tensorflow_dataset(self, verbose:bool=False) -> Tuple[tf.data.Dataset, BertTokenizerFast]:
+        def prepare_data(data : Tuple[int, int]) -> Tuple[str, str]:
+            ctx = data[0]
+            ctx = cut(ctx, sequence_length)
+            ctx = pad(ctx, sequence_length)
             
-            x = data[:,:,1]
-            # x = tokenizer.tokenize(x)
-            # x = x.merge_dims(-3, -1)
-            # x = x.to_tensor()
+            x = data[1]
+            x = cut(x, sequence_length)
+            x = pad(x, sequence_length)
             return ctx, x
         
-        def batch(ds):
+        def work(data : List[Tuple[str, str]]) -> List[Tuple[int, int]]:
+            d = []
+            
+            seq_len = sequence_length - 1
+            STEP_SIZE = seq_len // 4
+            
+            for datapoint in tqdm(data[:1]):
+                context, x = datapoint
+                context = tokenizer.encode(context)
+                context = context[:seq_len]
+                
+                x_end = seq_len - STEP_SIZE
+                x = tokenizer.encode(x)
+                while x_end < len(x):
+                    x_end += STEP_SIZE
+                    _x = x[x_end-seq_len:x_end]
+                    d.append((context, _x))
+
+            return list(map(prepare_data, d))
+        
+        dataset_path = 'tmp/dataset.tfds'
+        sequence_length = 256 + 1
+        
+        # Build and load the tokenizer
+        tokenizer = self.__get_tokenizer(verbose=verbose)
+        
+        # First build a basic dataset and make a tokenizer using tensorflow text
+        data = [item.get_as_datapoint() for item in self.collection]        
+        data = work(data)
+        
+        ds = tf.data.Dataset.from_tensor_slices(data)
+        
+        BATCH_SIZE = 4
+        BUFFER_SIZE = 1_000 
+        
+        def prepare_batch(data : tf.Tensor) -> Tuple[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
+            ctx = data[0][:-1] # Turn from SEQUENCE_LENGTH to SEQUENCE_LENGTH - 1
+            
+            xy = data[1]
+            x  = xy[:-1]
+            y  = xy[1:]
+            
+            ctx = tf.cast(ctx, dtype=tf.int64)
+            x   = tf.cast(x, dtype=tf.int64)
+            y   = tf.cast(y, dtype=tf.int64)
+            return (ctx, x), y
+        
+        def batch(ds : tf.data.Dataset) -> Tuple[tf.data.Dataset, BertTokenizerFast]:
             return (
                 ds
-                # .shuffle(BUFFER_SIZE)
-                .batch(BATCH_SIZE)
                 .map(prepare_batch, tf.data.AUTOTUNE)
+                .shuffle(BUFFER_SIZE)
+                .batch(BATCH_SIZE)
                 .prefetch(tf.data.AUTOTUNE)
                 )
         ds = batch(ds)

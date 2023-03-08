@@ -17,3 +17,13 @@ def extract_data_from_file_name(file_name : str) -> Tuple[str, str, str, str]:
     course_name = matches.group(3)
     file_type = matches.group(4)
     return course_code, revision, course_name, file_type
+
+def cut(sequence : str, sequence_length : int) -> List[int]:
+    if len(sequence) > sequence_length:
+        return sequence[:sequence_length]
+    return sequence
+
+def pad(sequence : List[int], sequence_length : int) -> List[int]:
+    if len(sequence) < sequence_length:
+        return sequence + ([0] * (sequence_length - len(sequence)))
+    return sequence

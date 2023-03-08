@@ -264,11 +264,11 @@ class StureGPT(Model):
                                dropout=dropout)
         
         self.ff = Dense(vocab_size)
-        
+    
+    @tf.function(input_signature=[(tf.TensorSpec(shape=(None, None), dtype=tf.int64, name='input_1'), tf.TensorSpec(shape=(None, None), dtype=tf.int64, name='input_2'))])
     def call(self, inputs):
         # inputs is data of form (context, x)
         ctx, x = inputs
-        
         ctx = self.encoder(ctx)
         
         x = self.decoder(x, ctx)
