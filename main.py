@@ -16,6 +16,8 @@ from transformer import StureGPT, StureGPTSchedule, masked_accuracy, masked_loss
 from transformer.generator import Generator
 from transformer.export import Exporter
 
+from course.new_tokens import ret_new_tok_count
+
 from utils import plot_attention_head, plot_attention_weights
 
 import argparse
@@ -49,7 +51,7 @@ sturegpt = StureGPT(num_layers=4,
                     model_dims=256,
                     num_heads=4,
                     ff_dims=512,
-                    vocab_size=tokenizer.vocab_size+1,      # +1 to accompany the [NL] token
+                    vocab_size=tokenizer.vocab_size + ret_new_tok_count(),      # + nr_new_toks to accompany the additional tokens
                     dropout=0.2)
 
 optimizer = tf.keras.optimizers.Adam(

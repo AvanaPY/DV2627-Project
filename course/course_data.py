@@ -250,7 +250,7 @@ class CourseDataCollection:
     
     def __get_tokenizer(self, verbose:bool=False) -> BertTokenizerFast:
         tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased')
-        tokenizer.add_tokens(["[NL]"], special_tokens=True)
+        tokenizer.add_tokens(list_of_toks, special_tokens=True)
         return tokenizer
     
     def get_tf_tokenizer(self) -> TFBertTokenizer:
