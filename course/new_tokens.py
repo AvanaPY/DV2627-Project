@@ -12,6 +12,8 @@ toks = {
     "axam_limitations"  : ["<EXAMLIMITS>", "</EXAMLIMITS>"],
     "other"             : ["<OTHER>", "</OTHER>"],
     "newline"           : ["<NL>"],
+    "course_name"       : ["<NAME>", "</NAME>"],
+    "number_of_HPs"     : ["<HPS>", "</HPS>"]
 }
 list_of_toks = []
 for key in toks:
