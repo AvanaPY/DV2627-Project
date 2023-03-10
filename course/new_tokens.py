@@ -21,3 +21,6 @@ nr_new_toks = len(list_of_toks)
 
 def ret_new_tok_count():
     return nr_new_toks
+
+def ret_new_toks():
+    return list_of_toks

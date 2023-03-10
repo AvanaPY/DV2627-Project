@@ -10,6 +10,8 @@ from course.utils import extract_data_from_file_name
 from course.utils import cut, pad
 from transformers import BertTokenizerFast, TFBertTokenizer
 
+from course.new_token import ret_new_toks
+
 @dataclass(frozen=True)
 class CourseSection:
     identifier : str
@@ -250,7 +252,8 @@ class CourseDataCollection:
     
     def __get_tokenizer(self, verbose:bool=False) -> BertTokenizerFast:
         tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased')
-        tokenizer.add_tokens(list_of_toks, special_tokens=True)
+        new_toks = ret_new_toks()
+        tokenizer.add_tokens(new_toks, special_tokens=True)
         return tokenizer
     
     def get_tf_tokenizer(self) -> TFBertTokenizer:
