@@ -2,11 +2,12 @@
 
 import tensorflow as tf
 from .sturegpt import StureGPT
+from transformers import BertTokenizerFast, TFBertTokenizer
 from course.utils import cut, pad
 from transformer import masked_accuracy, masked_loss
 
 class Generator():
-    def __init__(self, tokenizer, transformer):
+    def __init__(self, tokenizer : BertTokenizerFast, transformer : StureGPT):
         super().__init__()
         self.tokenizer = tokenizer
         self.transformer = transformer
@@ -37,22 +38,18 @@ class Generator():
         tokens = tf.transpose(stack.stack())[0]
         text = self.tokenizer.decode(tokens)
         
-        try:
-            self.transformer((context, tf.expand_dims(tokens[:-1], 0)), training=False)
-            attention_weights = self.transformer.decoder.last_att_scores
-        except:
-            print(f'WARNING::Attention weights no available!')
-            attention_weights = None
+        _, attention_weights = self.transformer((context, tf.expand_dims(tokens[:-1], 0)), return_attention_weights=True, training=False)
             
         return text, tokens, attention_weights
     
     def save(self, path):
-        self.transformer.save(path)
+        self.transformer.save_weights(path)
         
-    def load(self, path):
-        self.transformer = tf.keras.models.load_model(
-            path,
-            custom_objects={
-                'masked_loss':masked_loss,
-                'masked_accuracy':masked_accuracy
-            })
+    def load_weights(self, path):
+        self.transformer.load_weights(path)
+        
+    @staticmethod
+    def load_model(tokenizer, transformer, path):
+        gen = Generator(tokenizer, transformer)
+        gen.load_weights(path)
+        return gen

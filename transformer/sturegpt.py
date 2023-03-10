@@ -67,7 +67,7 @@ class AttentionCross(AttentionBase):
         
         x = self.add([x, att_output])
         x = self.norm(x)
-        return x
+        return x, att_scores
 
 class AttentionSelfGlobal(AttentionBase):
     def call(self, x):
@@ -190,13 +190,13 @@ class DecoderLayer(Layer):
         
     def call(self, x, context):
         x = self.causal_attention(x)
-        x = self.cross_attention(x=x, context=context)
+        x, attention_scores = self.cross_attention(x=x, context=context)
         
         # save last attention scores
         self.last_att_scores = self.cross_attention.last_att_scores
         
         x = self.ff(x)
-        return x
+        return x, attention_scores
     
 class Decoder(Layer):
     def __init__(self, 
@@ -233,12 +233,12 @@ class Decoder(Layer):
         
         x = self.dropout(x)
         for dec in self.dec_layers:
-            x = dec(x, context)
+            x, attention_scores = dec(x, context)
 
         self.last_att_scores = self.dec_layers[-1].last_att_scores
         
         x = self.ff(x)
-        return x
+        return x, attention_scores
 
 class StureGPT(Model):
     def __init__(self,
@@ -265,13 +265,13 @@ class StureGPT(Model):
         
         self.ff = Dense(vocab_size)
     
-    @tf.function(input_signature=[(tf.TensorSpec(shape=(None, None), dtype=tf.int64, name='input_1'), tf.TensorSpec(shape=(None, None), dtype=tf.int64, name='input_2'))])
-    def call(self, inputs):
+    # @tf.function(input_signature=[(tf.TensorSpec(shape=(None, None), dtype=tf.int64, name='input_1'), tf.TensorSpec(shape=(None, None), dtype=tf.int64, name='input_2'))])
+    def call(self, inputs, return_attention_weights : bool = False):
         # inputs is data of form (context, x)
         ctx, x = inputs
         ctx = self.encoder(ctx)
         
-        x = self.decoder(x, ctx)
+        x, attention_weights = self.decoder(x, ctx)
         
         logits = self.ff(x)
         
@@ -279,4 +279,7 @@ class StureGPT(Model):
             del logits._keras_mask
         except AttributeError:
             pass
+        
+        if return_attention_weights:
+            return logits, attention_weights
         return logits

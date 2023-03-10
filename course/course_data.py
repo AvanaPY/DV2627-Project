@@ -266,7 +266,7 @@ class CourseDataCollection:
             seq_len = sequence_length - 1
             STEP_SIZE = seq_len // 4
             
-            for datapoint in tqdm(data[:1]):
+            for datapoint in tqdm(data):
                 context, x = datapoint
                 context = tokenizer.encode(context)
                 context = context[:seq_len]
@@ -280,42 +280,51 @@ class CourseDataCollection:
 
             return list(map(prepare_data, d))
         
-        dataset_path = 'tmp/dataset.tfds'
         sequence_length = 256 + 1
         
         # Build and load the tokenizer
         tokenizer = self.__get_tokenizer(verbose=verbose)
         
         # First build a basic dataset and make a tokenizer using tensorflow text
-        data = [item.get_as_datapoint() for item in self.collection]        
-        data = work(data)
+        dataset_path = 'tmp/dataset.tfds'
         
-        ds = tf.data.Dataset.from_tensor_slices(data)
-        
-        BATCH_SIZE = 4
-        BUFFER_SIZE = 1_000 
-        
-        def prepare_batch(data : tf.Tensor) -> Tuple[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
-            ctx = data[0][:-1] # Turn from SEQUENCE_LENGTH to SEQUENCE_LENGTH - 1
+        if os.path.exists(dataset_path):
+            ds = tf.data.Dataset.load(dataset_path)
+        else:
+            data = [item.get_as_datapoint() for item in self.collection]        
+            data = work(data)
             
-            xy = data[1]
-            x  = xy[:-1]
-            y  = xy[1:]
+            ds = tf.data.Dataset.from_tensor_slices(data)
             
-            ctx = tf.cast(ctx, dtype=tf.int64)
-            x   = tf.cast(x, dtype=tf.int64)
-            y   = tf.cast(y, dtype=tf.int64)
-            return (ctx, x), y
-        
-        def batch(ds : tf.data.Dataset) -> Tuple[tf.data.Dataset, BertTokenizerFast]:
-            return (
-                ds
-                .map(prepare_batch, tf.data.AUTOTUNE)
-                .shuffle(BUFFER_SIZE)
-                .batch(BATCH_SIZE)
-                .prefetch(tf.data.AUTOTUNE)
-                )
-        ds = batch(ds)
+            BATCH_SIZE = 32
+            BUFFER_SIZE = 1_000 
+            
+            def prepare_batch(data : tf.Tensor) -> Tuple[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
+                ctx = data[0][:-1] # Turn from SEQUENCE_LENGTH to SEQUENCE_LENGTH - 1
+                
+                xy = data[1]
+                x  = xy[:-1]
+                y  = xy[1:]
+                
+                ctx = tf.cast(ctx, dtype=tf.int64)
+                x   = tf.cast(x, dtype=tf.int64)
+                y   = tf.cast(y, dtype=tf.int64)
+                return (ctx, x), y
+            
+            def batch(ds : tf.data.Dataset) -> Tuple[tf.data.Dataset, BertTokenizerFast]:
+                return (
+                    ds
+                    .map(prepare_batch, tf.data.AUTOTUNE)
+                    .shuffle(BUFFER_SIZE)
+                    .batch(BATCH_SIZE)
+                    .cache()
+                    .prefetch(tf.data.AUTOTUNE)
+                    )
+            ds = batch(ds)
+            
+            if verbose:
+                print(f'Saving dataset to {dataset_path}')
+            ds.save(dataset_path)
         return ds, tokenizer
         
     @staticmethod
