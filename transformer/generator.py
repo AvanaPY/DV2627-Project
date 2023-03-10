@@ -7,11 +7,14 @@ from course.utils import cut, pad
 from transformer import masked_accuracy, masked_loss
 
 class Generator():
-    def __init__(self, tokenizer : BertTokenizerFast, transformer : StureGPT):
+    def __init__(self, 
+                 tokenizer : BertTokenizerFast, 
+                 transformer : StureGPT,
+                 max_length : int = 1000):
         super().__init__()
         self.tokenizer = tokenizer
         self.transformer = transformer
-        self.max_length = 10
+        self.max_length = max_length
 
     def __call__(self, context : str):
         context = self.tokenizer.encode(context)
@@ -49,7 +52,7 @@ class Generator():
         self.transformer.load_weights(path)
         
     @staticmethod
-    def load_model(tokenizer, transformer, path):
-        gen = Generator(tokenizer, transformer)
+    def load_model(tokenizer, transformer, path, *args, **kwargs):
+        gen = Generator(tokenizer, transformer, *args, **kwargs)
         gen.load_weights(path)
         return gen

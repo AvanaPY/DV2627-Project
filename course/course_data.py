@@ -83,6 +83,14 @@ class CourseData:
         return file_content
         
     def get_as_datapoint(self):
+        """
+            Returns the course as a datapoint
+        """
+        
+        """
+            <SYFTE> </SYFTE>
+            <KRAV> </KRAV>
+        """
         
         context : List[str] = []
         
@@ -97,17 +105,17 @@ class CourseData:
         context = re.sub(' ([:.,])', r'\1', context)
         context = re.sub(' +', ' ', context)
         
-        file_content : List[str] = []
+        data : List[str] = []
         for section in self.sections:
-            file_content.append(f'{section.identifier} {section.title}')
-            file_content.append(section.content)
+            data.append(f'{section.identifier} {section.title}')
+            data.append(section.content)
     
-        file_content = '\n'.join(file_content)
-        file_content = re.sub(' ([:.,])', r'\1', file_content)
-        file_content = re.sub(' +', ' ', file_content)
-        file_content = re.sub('\n', '[NL]', file_content)
+        data = '\n'.join(data)
+        data = re.sub(' ([:.,])', r'\1', data)
+        data = re.sub(' +', ' ', data)
+        data = re.sub('\n', '[NL]', data)
         
-        return context, file_content
+        return context, data
     
     @staticmethod
     def split_at_section_one(texts : List[str]) -> Tuple[List[str], List[str]]:
@@ -249,7 +257,13 @@ class CourseDataCollection:
         tokenizer = TFBertTokenizer.from_tokenizer(self.__get_tokenizer(False))
         return tokenizer
     
-    def build_tensorflow_dataset(self, verbose:bool=False) -> Tuple[tf.data.Dataset, BertTokenizerFast]:
+    def build_tensorflow_dataset(self, 
+                                 sequence_length : int = 257,
+                                 BATCH_SIZE : int = 8,
+                                 SHUFFLE_BUFFER_SIZE : int = 100, 
+                                 force_rebuild_file : bool = False,
+                                 verbose : bool = False) -> Tuple[tf.data.Dataset, BertTokenizerFast]:
+        
         def prepare_data(data : Tuple[int, int]) -> Tuple[str, str]:
             ctx = data[0]
             ctx = cut(ctx, sequence_length)
@@ -280,24 +294,19 @@ class CourseDataCollection:
 
             return list(map(prepare_data, d))
         
-        sequence_length = 256 + 1
-        
         # Build and load the tokenizer
         tokenizer = self.__get_tokenizer(verbose=verbose)
         
         # First build a basic dataset and make a tokenizer using tensorflow text
         dataset_path = 'tmp/dataset.tfds'
         
-        if os.path.exists(dataset_path):
+        if os.path.exists(dataset_path) and not force_rebuild_file:
             ds = tf.data.Dataset.load(dataset_path)
         else:
             data = [item.get_as_datapoint() for item in self.collection]        
             data = work(data)
             
             ds = tf.data.Dataset.from_tensor_slices(data)
-            
-            BATCH_SIZE = 32
-            BUFFER_SIZE = 1_000 
             
             def prepare_batch(data : tf.Tensor) -> Tuple[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
                 ctx = data[0][:-1] # Turn from SEQUENCE_LENGTH to SEQUENCE_LENGTH - 1
@@ -315,9 +324,9 @@ class CourseDataCollection:
                 return (
                     ds
                     .map(prepare_batch, tf.data.AUTOTUNE)
-                    .shuffle(BUFFER_SIZE)
-                    .batch(BATCH_SIZE)
+                    .shuffle(SHUFFLE_BUFFER_SIZE)
                     .cache()
+                    .batch(BATCH_SIZE)
                     .prefetch(tf.data.AUTOTUNE)
                     )
             ds = batch(ds)

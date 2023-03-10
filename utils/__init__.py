@@ -15,17 +15,17 @@ def plot_attention_head(in_tokens, translated_tokens, attention):
     labels = [label for label in translated_tokens]
     ax.set_yticklabels(labels)
     
-def plot_attention_weights(sentence, translated_tokens, attention_heads, tokenizer, max_heads : int = 2):
+def plot_attention_weights(sentence, translated_tokens, attention_heads, tokenizer, max_heads : int = 4):
     in_tokens = tokenizer.encode(sentence)
     in_tokens = tokenizer.convert_ids_to_tokens(in_tokens)
     
     translated_tokens = [label for label in translated_tokens.numpy()]
     translated_tokens = tokenizer.convert_ids_to_tokens(translated_tokens)
     
-    fig = plt.figure(figsize=(16, 8))
+    fig = plt.figure(figsize=(12, 12))
 
     for h, head in enumerate(attention_heads[:max_heads]):
-        ax = fig.add_subplot(1, 2, h+1)
+        ax = fig.add_subplot(2, 2, h+1)
 
         plot_attention_head(in_tokens, translated_tokens, head)
 

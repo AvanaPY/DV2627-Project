@@ -38,18 +38,23 @@ data_collection = CourseDataCollection.from_folder(converted_folder)
 if not os.path.exists(rebuilt_folder):
     data_collection.build_txt_library(rebuilt_folder)
 
-ds, tokenizer = data_collection.build_tensorflow_dataset(verbose=True)
+ds, tokenizer = data_collection.build_tensorflow_dataset(
+    sequence_length=257,
+    BATCH_SIZE=16,
+    SHUFFLE_BUFFER_SIZE=100,
+    verbose=True,
+    force_rebuild_file=True)
     
 sturegpt = StureGPT(num_layers=4,
-                    model_dims=128,
+                    model_dims=256,
                     num_heads=4,
-                    ff_dims=256,
+                    ff_dims=512,
                     vocab_size=tokenizer.vocab_size+1,      # +1 to accompany the [NL] token
                     dropout=0.2)
 
 optimizer = tf.keras.optimizers.Adam(
     # StureGPTSchedule(256, warmup_steps=),
-    learning_rate=1e-4,
+    learning_rate=2e-4,
     beta_1=0.9,
     beta_2=0.99,
     epsilon=1e-9
@@ -62,24 +67,31 @@ sturegpt.compile(
 )
 
 def main(args : Dict[str, Tuple[bool, str]]):
-
     if args.load_model:
         if args.verbose:
             print(f'Loading model from {"models/sturegpt"}')
-        gen = Generator.load_model(tokenizer, sturegpt, 'models/sturegpt')
+        gen = Generator.load_model(tokenizer, sturegpt, 'models/sturegpt', max_length=args.num_tokens)
     else:
         if args.verbose:
-            print(f'Rebuilding and training model.')
-        gen = Generator(tokenizer, sturegpt)
-        gen.transformer.fit(ds, epochs=1)
+            print(f'Rebuilding and training model')
+        gen = Generator(tokenizer, sturegpt, max_length=args.num_tokens)
+        
+    if args.num_epochs > 0:
+        gen.transformer.fit(ds, epochs=args.num_epochs)
         gen.save('models/sturegpt')
+    else:
+        for batch in ds.rebatch(1).take(1):
+            gen.transformer(batch[0])
+            
+    if args.verbose:
+        sturegpt.summary()
 
     context = '''KURSPLAN
-    dv2627
-    Revision 13
-    Ett väldigt dåligt program
-    Emelie
-    Högskolepoäng: -4'''
+dv1278
+Revision 2
+Fortsättning i php
+Continuation in php
+Högskolepoäng: 6'''
 
     if args.verbose:
         print(f'Generating output')
@@ -93,6 +105,8 @@ def main(args : Dict[str, Tuple[bool, str]]):
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--num-epochs', '-e', type=int, default=10, help='How many epochs to train the model on', dest='num_epochs')
+    parser.add_argument('--num-tokens', '-n', type=int, default=20, help='How many tokens to generate', dest='num_tokens')
     parser.add_argument('--load-model', '-L', action='store_true', help='Turn on to load a current model', dest='load_model')
     parser.add_argument('--verbose', '-v', action='store_true', help='Turn on verbose', dest='verbose')
     args = parser.parse_args()
